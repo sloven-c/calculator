@@ -15,17 +15,17 @@ stack stack_init(const DataType type, const int len) {
         .len = len,
     };
 
-    const size_t arrLen = len * sizeof(char);
+    const size_t arrLen = len;
 
     switch (type) {
         case StringArray:
-            stack.data.sarr = malloc(arrLen);
+            stack.data.sarr = malloc(arrLen * sizeof(char *));
             break;
         case CharArray:
-            stack.data.carr = malloc(arrLen);
+            stack.data.carr = malloc(arrLen * sizeof(char));
             break;
         case IntArray:
-            stack.data.narr = malloc(arrLen);
+            stack.data.narr = malloc(arrLen * sizeof(int));
         default:
             fprintf(stderr, "Failed to recognise the DataType for Stack structure");
             exit(1);
@@ -106,18 +106,21 @@ stackData stack_pop(stack *stack) {
 }
 
 stackData stack_get(const stack *stack, const int n) {
-    if (stack->i == -1 || n >= stack->len) return (stackData){.ret_code = 1};
+    if (stack->i == -1 || n > stack->i) return (stackData){.ret_code = 1};
     stackInput returnData;
 
     switch (stack->type) {
         case StringArray:
-            returnData.string = stack->data.sarr[stack->i];
+            // todo do not forget to think about freeing memory
+            const size_t len = strlen(stack->data.sarr[n]);
+            returnData.string = malloc(len * sizeof(char) + 1);
+            strcpy(returnData.string, stack->data.sarr[n]);
             break;
         case CharArray:
-            returnData.ch = stack->data.carr[stack->i];
+            returnData.ch = stack->data.carr[n];
             break;
         case IntArray:
-            returnData.n = stack->data.narr[stack->i];
+            returnData.n = stack->data.narr[n];
             break;
     }
 
@@ -151,7 +154,7 @@ void stack_print(const stack *stack, const char *name) {
 
         printf("\n");
     }
-    printf("\n");
+    printf("i location: %d\n", stack->i);
 }
 
 static void clear_str_array(const stack *stack) {

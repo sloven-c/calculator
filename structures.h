@@ -13,7 +13,7 @@ typedef enum {
 
 typedef struct {
     charType type;
-    size_t opPrecedence;
+    int opPrecedence;
 } charResult;
 
 typedef struct {

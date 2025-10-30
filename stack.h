@@ -21,6 +21,7 @@ typedef struct {
     } data;
 
     // if i >= len, the program's guardrails have failed
+    // i represents last written array space, len represents the array's length
     int i, len;
 } stack;
 

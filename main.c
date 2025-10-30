@@ -23,7 +23,7 @@ bool stack_higher_precedence(char op, char stackOp);
 
 stack split_into_tokens(string expression);
 
-string get_slice(int a, size_t b, const char *expression);
+string get_slice(int a, int b, const char *expression);
 
 bool validate_expression(const char *expression);
 
@@ -33,14 +33,12 @@ void validate_malloc(const void *p);
 
 void throw_error(char *msg);
 
-const char *OPERATORS[] = {"+-", "*/", "^", "()"};
-
 int main(const int argc, char *argv[]) {
     const string expression = get_expression(argc, argv);
     if (expression.string == nullptr) return 0;
 
     stack tokens = split_into_tokens(expression);
-    stack_print(&tokens, "Tokens");
+    stack_print(&tokens, "tokens");
 
     stack output_queue = get_output_queue(&tokens);
 
@@ -56,7 +54,7 @@ int main(const int argc, char *argv[]) {
 int calculate_stack(const stack *output_queue) {
     stack calculation_stack = stack_init(IntArray, output_queue->len);
 
-    for (size_t i = 0; i <= output_queue->i; i++) {
+    for (int i = 0; i <= output_queue->i; i++) {
         const stackData element = stack_get(output_queue, i);
         if (element.ret_code == 1)
             throw_error("Couldn't retrieve element from output queue for calculation stack push");
@@ -106,7 +104,8 @@ int str_to_num(char *string) {
 
 // ReSharper disable once CppNotAllPathsReturnValue
 int calculate(const int a, const int b, const char op) {
-    switch (op) {
+    // ReSharper disable once CppDefaultCaseNotHandledInSwitchStatement
+    switch (op) { // NOLINT(*-multiway-paths-covered)
         case '+':
             return a + b;
         case '-':
@@ -157,7 +156,7 @@ stack get_output_queue(const stack *tokenisedExpression) {
     stack output_stack = stack_init(StringArray, tokenisedExpression->len);
     stack operator_stack = stack_init(CharArray, tokenisedExpression->len);
 
-    for (size_t i = 0; i < tokenisedExpression->i; i++) {
+    for (size_t i = 0; i <= tokenisedExpression->i; i++) {
         const stackData token = stack_get(tokenisedExpression, i);
         if (token.ret_code == 1) throw_error("Failed to retrieve token");
 
@@ -216,19 +215,24 @@ int push_operator(const char operatorToPush, stack *output_stack, stack *operato
 }
 
 bool stack_higher_precedence(const char op, const char stackOp) {
-    return validate_char(stackOp).opPrecedence > validate_char(op).opPrecedence;
+    const int stackOpPrecedence = validate_char(stackOp).opPrecedence, opPrecedence = validate_char(op).opPrecedence;
+    if (stackOpPrecedence == -1 || opPrecedence == -1) return false;
+
+    return stackOpPrecedence > opPrecedence;
 }
 
 stack split_into_tokens(const string expression) {
     stack tokenisedExpression = stack_init(StringArray, expression.len);
     int lastOp = -1;
 
-    for (size_t i = 0; i < expression.len; i++) {
+    // -1 is to not push \0 onto stack
+    for (size_t i = 0; i < expression.len - 1; i++) {
         if (validate_char(expression.string[i]).type != Operator) continue;
 
         const string slice = get_slice(lastOp, i, expression.string);
         if (slice.string != nullptr) {
             const int ret = stack_push(&tokenisedExpression, (stackInput){.string = slice.string}, false);
+            free(slice.string);
             if (ret == 1) throw_error("Failed to push slice into stack");
         }
 
@@ -241,19 +245,17 @@ stack split_into_tokens(const string expression) {
     return tokenisedExpression;
 }
 
-// todo fix edge case on beginning
-string get_slice(int a, size_t b, const char *expression) {
-    const size_t len = b - abs(a) - 1;
+string get_slice(int a, int b, const char *expression) {
+    const int len = b - a - 1;
     if (len < 1) return (string){.string = nullptr};
 
-    const size_t total_len = len * sizeof(char) + 1;
+    const int total_len = len * sizeof(char) + 1;
 
     char *slice = malloc(total_len);
     validate_malloc(slice);
 
-
     for (const size_t i = ++a; a < b; a++) {
-        // we don't track i separately but how much has a moved since we started creating the slice
+        // we don't track i separately but how much has 'a' moved since we started creating the slice
         slice[a - i] = expression[a];
     }
 
@@ -270,11 +272,13 @@ bool validate_expression(const char *expression) {
 
 charResult validate_char(const char c) {
     if (isdigit(c)) return (charResult){Digit, 0};
+    const char *OPERATORS[] = {"+-", "*/", "^", "()"};
 
     for (int i = 0; i < sizeof(OPERATORS); i++) {
         for (int j = 0; j < sizeof(OPERATORS[i]); j++) {
             if (c == OPERATORS[i][j])
-                return (charResult){Operator, i};
+                // if the operators are parenthesis return 'invalid' precedence
+                return (charResult){Operator, i == sizeof(OPERATORS) - 1 ? -1 : i};
         }
     }
 
