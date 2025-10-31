@@ -38,6 +38,8 @@ int main(const int argc, char *argv[]) {
      * TODO
      * Implement calculating with negative numbers
      * and if you're suicidal enough calculation with floats
+     * Fix strlen performance costs
+     * Maybe also improve our exception/error handling
      */
     const string expression = get_expression(argc, argv);
     if (expression.string == nullptr) {
@@ -138,11 +140,11 @@ string get_expression(const int argc, char *argv[]) {
     string ex = {.string = nullptr};
     if (argc <= 1) return ex; // first argument is just program name
 
-    size_t len = 0;
+    int len = 0;
     for (size_t i = 1; i < argc; i++) {
-        len += strlen(argv[i]);
+        len += (int) strlen(argv[i]);
     }
-    const size_t totalLen = len * sizeof(char) + 1; // +1 => \0 (0x0)
+    const int totalLen = len * (int) sizeof(char) + 1; // +1 => \0 (0x0)
 
     char *expression = malloc(totalLen);
     validate_malloc(expression);
@@ -168,7 +170,7 @@ stack get_output_queue(const stack *tokenisedExpression) {
     stack output_stack = stack_init(StringArray, tokenisedExpression->len);
     stack operator_stack = stack_init(CharArray, tokenisedExpression->len);
 
-    for (size_t i = 0; i <= tokenisedExpression->i; i++) {
+    for (int i = 0; i <= tokenisedExpression->i; i++) {
         const stackData token = stack_get(tokenisedExpression, i);
         if (token.ret_code == 1) throw_error("Failed to retrieve token");
 
@@ -213,6 +215,7 @@ int push_operator(const char operatorToPush, stack *output_stack, stack *operato
 
         return 0;
     }
+
     stackData lastStackOp = stack_get(operator_stack, operator_stack->i);
     while (lastStackOp.ret_code == 0 && stack_higher_precedence(operatorToPush, lastStackOp.data.ch)) {
         const stackData opToPush = stack_pop(operator_stack);
@@ -229,6 +232,7 @@ int push_operator(const char operatorToPush, stack *output_stack, stack *operato
 bool stack_higher_precedence(const char op, const char stackOp) {
     const int stackOpPrecedence = validate_char(stackOp).opPrecedence, opPrecedence = validate_char(op).
             opPrecedence;
+    // -1 precedence is returned only when one of the operator are brackets ()
     if (stackOpPrecedence == -1 || opPrecedence == -1) return false;
 
     return stackOpPrecedence > opPrecedence;
@@ -239,7 +243,7 @@ stack split_into_tokens(const string expression) {
     int lastOp = -1;
 
     // -1 is to not push \0 onto stack
-    for (size_t i = 0; i < expression.len; i++) {
+    for (int i = 0; i < expression.len; i++) {
         // we track if we reached \0 so we can make sure the  last number gets pushed onto the stack
         // as we only do stack pushing when we reach an operator or in this case \0
         const bool reached_eof = expression.string[i] == 0x0 && lastOp != i - 1;
@@ -262,12 +266,13 @@ stack split_into_tokens(const string expression) {
     return tokenisedExpression;
 }
 
-string get_slice(int a, int b, const char *expression) {
+string get_slice(int a, const int b, const char *expression) {
     const int len = b - a - 1;
     if (len < 1) return (string){.string = nullptr};
 
-    const int total_len = len * sizeof(char) + 1;
+    const int total_len = len * (int) sizeof(char) + 1;
 
+    // disregard malloc warnings the caller frees the memory
     char *slice = malloc(total_len);
     validate_malloc(slice);
 
@@ -275,6 +280,7 @@ string get_slice(int a, int b, const char *expression) {
         // we don't track i separately but how much has 'a' moved since we started creating the slice
         slice[a - i] = expression[a];
     }
+    slice[len] = 0x0;
 
     return (string){slice, total_len};
 }
