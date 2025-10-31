@@ -34,14 +34,23 @@ void validate_malloc(const void *p);
 void throw_error(char *msg);
 
 int main(const int argc, char *argv[]) {
+    /*
+     * TODO
+     * Implement calculating with negative numbers
+     * and if you're suicidal enough calculation with floats
+     */
     const string expression = get_expression(argc, argv);
-    if (expression.string == nullptr) return 0;
+    if (expression.string == nullptr) {
+        fprintf(stderr, "Couldn't parse the expression\n");
+        return 0;
+    }
 
     stack tokens = split_into_tokens(expression);
-    stack_print(&tokens, "tokens");
+    // stack_print(&tokens, "tokens");
 
     stack output_queue = get_output_queue(&tokens);
 
+    // stack_print(&output_queue, "Output");
     printf("%d\n", calculate_stack(&output_queue));
 
     stack_deinit(&output_queue);
@@ -66,9 +75,11 @@ int calculate_stack(const stack *output_queue) {
                 if (r == 1) throw_error("Failed to push number to calculation stack");
                 break;
             case Operator:
-                const stackData aP = stack_pop(&calculation_stack);
                 const stackData bP = stack_pop(&calculation_stack);
-                if (aP.ret_code == 1 || bP.ret_code == 1) throw_error("Failed to pop numbers from calculation stack");
+                const stackData aP = stack_pop(&calculation_stack);
+                if (aP.ret_code == 1 || bP.ret_code == 1)
+                    throw_error(
+                        "Failed to pop numbers from calculation stack");
 
                 const int result = calculate(aP.data.n, bP.data.n, element.data.string[0]);
                 const int rSp = stack_push(&calculation_stack, (stackInput){.n = result}, false);
@@ -76,7 +87,8 @@ int calculate_stack(const stack *output_queue) {
 
                 break;
             case Invalid:
-                fprintf(stderr, "The following string is not valid part of expression: '%s'\n", element.data.string);
+                fprintf(stderr, "The following string is not valid part of expression: '%s'\n",
+                        element.data.string);
                 throw_error(nullptr);
         }
     }
@@ -168,6 +180,9 @@ stack get_output_queue(const stack *tokenisedExpression) {
             // push number to output queue
             stack_push(&output_stack, token.data, false);
         }
+
+        // printf("pushing output stack, i = %lu\n", i);
+        // stack_print(&output_stack, "Output");
     }
 
     // pop everything from operator to output stack
@@ -198,24 +213,22 @@ int push_operator(const char operatorToPush, stack *output_stack, stack *operato
 
         return 0;
     }
-
-    for (stackData lastStackOp = stack_get(operator_stack, operator_stack->i);
-         stack_higher_precedence(operatorToPush, lastStackOp.data.ch);
-         lastStackOp = stack_get(operator_stack, operator_stack->i)) {
-        if (lastStackOp.ret_code == 1) return 1;
-
+    stackData lastStackOp = stack_get(operator_stack, operator_stack->i);
+    while (lastStackOp.ret_code == 0 && stack_higher_precedence(operatorToPush, lastStackOp.data.ch)) {
         const stackData opToPush = stack_pop(operator_stack);
         if (opToPush.ret_code == 1) return 1;
 
         const int r = stack_push(output_stack, opToPush.data, true);
         if (r == 1) return 1;
+        lastStackOp = stack_get(operator_stack, operator_stack->i);
     }
 
     return stack_push(operator_stack, (stackInput){.ch = operatorToPush}, true);
 }
 
 bool stack_higher_precedence(const char op, const char stackOp) {
-    const int stackOpPrecedence = validate_char(stackOp).opPrecedence, opPrecedence = validate_char(op).opPrecedence;
+    const int stackOpPrecedence = validate_char(stackOp).opPrecedence, opPrecedence = validate_char(op).
+            opPrecedence;
     if (stackOpPrecedence == -1 || opPrecedence == -1) return false;
 
     return stackOpPrecedence > opPrecedence;
@@ -226,8 +239,11 @@ stack split_into_tokens(const string expression) {
     int lastOp = -1;
 
     // -1 is to not push \0 onto stack
-    for (size_t i = 0; i < expression.len - 1; i++) {
-        if (validate_char(expression.string[i]).type != Operator) continue;
+    for (size_t i = 0; i < expression.len; i++) {
+        // we track if we reached \0 so we can make sure the  last number gets pushed onto the stack
+        // as we only do stack pushing when we reach an operator or in this case \0
+        const bool reached_eof = expression.string[i] == 0x0 && lastOp != i - 1;
+        if (validate_char(expression.string[i]).type != Operator && !reached_eof) continue;
 
         const string slice = get_slice(lastOp, i, expression.string);
         if (slice.string != nullptr) {
@@ -236,6 +252,7 @@ stack split_into_tokens(const string expression) {
             if (ret == 1) throw_error("Failed to push slice into stack");
         }
 
+        if (reached_eof) break; // do not push \0 into token stack
         const int ret = stack_push(&tokenisedExpression, (stackInput){.ch = expression.string[i]}, true);
         if (ret == 1) throw_error("Failed to push current operator into stack");
 
@@ -272,13 +289,15 @@ bool validate_expression(const char *expression) {
 
 charResult validate_char(const char c) {
     if (isdigit(c)) return (charResult){Digit, 0};
+    // todo maybe we it'd be better to just have it as const instead of creating it every time we call this function
     const char *OPERATORS[] = {"+-", "*/", "^", "()"};
+    constexpr int OP_LEN = sizeof(OPERATORS) / sizeof(OPERATORS[0]);
 
-    for (int i = 0; i < sizeof(OPERATORS); i++) {
-        for (int j = 0; j < sizeof(OPERATORS[i]); j++) {
+    for (int i = 0; i < OP_LEN; i++) {
+        for (int j = 0; j < strlen(OPERATORS[i]); j++) {
             if (c == OPERATORS[i][j])
                 // if the operators are parenthesis return 'invalid' precedence
-                return (charResult){Operator, i == sizeof(OPERATORS) - 1 ? -1 : i};
+                return (charResult){Operator, i == OP_LEN - 1 ? -1 : i};
         }
     }
 

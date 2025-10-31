@@ -26,6 +26,7 @@ stack stack_init(const DataType type, const int len) {
             break;
         case IntArray:
             stack.data.narr = malloc(arrLen * sizeof(int));
+            break;
         default:
             fprintf(stderr, "Failed to recognise the DataType for Stack structure");
             exit(1);
@@ -84,14 +85,16 @@ int stack_push(stack *stack, const stackInput input, const bool pushCharToString
 }
 
 stackData stack_pop(stack *stack) {
+    // TODO in the future we have to think of solution to clear stackData after we're done with it
+    // TODO maybe fn stack_pop_free()?
     if (stack->i == -1) return (stackData){.ret_code = 1};
     stackInput returnData;
 
     switch (stack->type) {
         case StringArray:
-            returnData.string = stack->data.sarr[stack->i];
-            // todo might have to do malloc?
-            // todo ticking timebomb
+            const size_t len = strlen(stack->data.sarr[stack->i]);
+            returnData.string = malloc(len * sizeof(char) + 1);
+            strcpy(returnData.string, stack->data.sarr[stack->i]);
             break;
         case CharArray:
             returnData.ch = stack->data.carr[stack->i];
